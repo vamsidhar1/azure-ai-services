@@ -2,14 +2,12 @@ import os
 import fitz  # PyMuPDF for PDF text extraction
 import requests
 import json
-from fastapi import FastAPI, UploadFile, File
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from azure.identity import DefaultAzureCredential
 from azure.search.documents import SearchClient
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.models import Vector
 from azure.core.credentials import AzureKeyCredential
-import uvicorn
 
 # Load environment variables for Azure
 AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
@@ -19,8 +17,6 @@ AZURE_SEARCH_KEY = os.getenv("AZURE_SEARCH_KEY")
 AZURE_SEARCH_INDEX = os.getenv("AZURE_SEARCH_INDEX")
 AZURE_FORM_RECOGNIZER_ENDPOINT = os.getenv("AZURE_FORM_RECOGNIZER_ENDPOINT")
 AZURE_FORM_RECOGNIZER_KEY = os.getenv("AZURE_FORM_RECOGNIZER_KEY")
-
-app = FastAPI()
 
 # Initialize Azure AI Search
 search_client = SearchClient(
@@ -104,29 +100,30 @@ def ask_gpt4(query, context):
     response = requests.post(url, headers=headers, json=data)
     return response.json()["choices"][0]["message"]["content"]
 
-@app.post("/upload-pdf/")
-async def upload_pdf(file: UploadFile = File(...)):
-    """API to upload a PDF, extract text, and store embeddings in Azure AI Search."""
-    file_path = f"temp_{file.filename}"
-    
-    with open(file_path, "wb") as f:
-        f.write(await file.read())
-
+# Example function to process a PDF and index the chunks
+def process_pdf(file_path):
+    """Process the PDF, extract text, split into chunks, and index."""
     text = extract_text_from_pdf(file_path)
     chunks = chunk_text(text)
     index_chunks(chunks)
-    
-    os.remove(file_path)
-    return {"message": "PDF processed and indexed successfully!", "total_chunks": len(chunks)}
+    return len(chunks)
 
-@app.get("/ask/")
-async def ask(query: str):
-    """API to get an answer based on a user query."""
+# Example function to ask a question based on a query
+def ask_question(query):
+    """Search for relevant chunks and generate an answer using GPT-4."""
     top_chunks = search_chunks(query)
     context = " ".join(top_chunks)
     answer = ask_gpt4(query, context)
+    return answer
 
-    return {"query": query, "answer": answer}
-
+# Example usage
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Example: Process a PDF
+    pdf_path = "your_pdf_file.pdf"
+    total_chunks = process_pdf(pdf_path)
+    print(f"PDF processed and indexed successfully! Total chunks: {total_chunks}")
+    
+    # Example: Ask a question
+    question = "What is the main topic of the document?"
+    answer = ask_question(question)
+    print(f"Answer: {answer}")
