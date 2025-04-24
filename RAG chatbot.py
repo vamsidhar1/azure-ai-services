@@ -2,7 +2,6 @@ import fitz  # PyMuPDF for PDF text extraction
 import faiss
 import numpy as np
 import os
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 import openai
 
 # Set your OpenAI API key
@@ -18,10 +17,17 @@ def extract_text_from_pdf(pdf_path):
     text = "\n".join([page.get_text("text") for page in doc])
     return text
 
-def chunk_text(text):
-    """ Splits extracted text into manageable chunks. """
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    return splitter.split_text(text)
+def chunk_text(text, chunk_size=500, chunk_overlap=50):
+    """ Splits text into chunks with overlap (no LangChain used). """
+    chunks = []
+    start = 0
+    text_length = len(text)
+
+    while start < text_length:
+        end = min(start + chunk_size, text_length)
+        chunks.append(text[start:end])
+        start += chunk_size - chunk_overlap  # Slide with overlap
+    return chunks
 
 def embed_text_openai(text_chunks):
     """ Uses OpenAI to embed text chunks. """
@@ -46,7 +52,7 @@ def search_faiss(query, top_k=3):
         input=query,
         model="text-embedding-3-small"
     )["data"][0]["embedding"]
-    
+
     query_vector = np.array([query_embedding], dtype="float32")
     distances, indices = index.search(query_vector, top_k)
     return [chunks[i] for i in indices[0]]
@@ -77,7 +83,7 @@ def run_query(query):
     """ Runs a query against the indexed data. """
     if not chunks or index is None:
         return "No document has been processed yet!"
-    
+
     top_chunks = search_faiss(query)
     context = " ".join(top_chunks)
     answer = ask_openai(query, context)
@@ -87,7 +93,7 @@ def run_query(query):
 if __name__ == "__main__":
     pdf_path = "example.pdf"  # Replace with your actual PDF file path
     process_pdf_and_index(pdf_path)
-    
+
     while True:
         user_query = input("\nAsk a question (or type 'exit'): ")
         if user_query.lower() == "exit":
