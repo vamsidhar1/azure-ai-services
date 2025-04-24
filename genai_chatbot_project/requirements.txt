@@ -1,4 +1,0 @@
-azure-ai-formrecognizer
-azure-ai-openai
-azure-search-documents
-python-dotenv
